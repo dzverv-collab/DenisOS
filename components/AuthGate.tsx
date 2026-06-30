@@ -21,23 +21,39 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       setReady(true);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
 
-    return () => sub.subscription.unsubscribe();
+    return () => subscription.unsubscribe();
   }, []);
 
   async function signIn() {
-    if (!supabase || !email) return;
+    if (!supabase) {
+      alert("Supabase не подключён");
+      return;
+    }
 
-    const origin = window.location.origin;
+    if (!email.trim()) {
+      alert("Введите email");
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: origin },
+      email: email.trim(),
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
     });
 
-    if (!error) setSent(true);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setSent(true);
   }
 
   if (!ready) {
@@ -55,7 +71,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f4f7fb] px-4">
-        <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-soft">
+        <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
           <div className="rounded-3xl bg-slate-950 p-5 text-white">
             <div className="text-2xl font-bold">🚀 Denis OS</div>
             <div className="mt-1 text-sm text-slate-300">
@@ -72,22 +88,24 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           </p>
 
           <input
+            type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="email@example.com"
-            className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+            className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-slate-900"
           />
 
           <button
+            type="button"
             onClick={signIn}
-            className="mt-3 w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
+            className="mt-3 w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             Отправить ссылку
           </button>
 
           {sent && (
             <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
-              Ссылка отправлена. Проверь почту.
+              ✅ Ссылка отправлена. Проверь почту.
             </div>
           )}
         </div>
