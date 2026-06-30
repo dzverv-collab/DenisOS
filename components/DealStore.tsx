@@ -139,9 +139,16 @@ export function DealStoreProvider({ children }: { children: React.ReactNode }) {
 
       if (!supabase) return;
 
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        alert("Нужно войти в аккаунт, чтобы сохранить телефон в базе.");
+        setDeals((prev) => prev.filter((d) => d.id !== tempId));
+        return;
+      }
+
       const { data, error } = await supabase
         .from("deals")
-        .insert(dealToDb(optimisticDeal))
+        .insert({ ...dealToDb(optimisticDeal), user_id: userData.user.id })
         .select("*")
         .single();
 
@@ -205,7 +212,9 @@ export function DealStoreProvider({ children }: { children: React.ReactNode }) {
 
     addContent: async (card) => {
       if (supabase) {
-        const { data } = await supabase.from("content_cards").insert(card).select("*").single();
+        const { data: userData } = await supabase.auth.getUser();
+        const payload = userData.user ? { ...card, user_id: userData.user.id } : card;
+        const { data } = await supabase.from("content_cards").insert(payload).select("*").single();
         if (data) setContent((prev) => [contentFromDb(data), ...prev]);
         return;
       }
@@ -236,13 +245,18 @@ export function DealStoreProvider({ children }: { children: React.ReactNode }) {
       setHabits((prev) => existing ? prev.map((h) => h.date === date ? next : h) : [next, ...prev]);
 
       if (supabase) {
-        await supabase.from("habits").upsert(next, { onConflict: "user_id,date" });
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData.user) {
+          await supabase.from("habits").upsert({ ...next, user_id: userData.user.id }, { onConflict: "user_id,date" });
+        }
       }
     },
 
     addLearning: async (entry) => {
       if (supabase) {
-        const { data } = await supabase.from("learning_entries").insert(entry).select("*").single();
+        const { data: userData } = await supabase.auth.getUser();
+        const payload = userData.user ? { ...entry, user_id: userData.user.id } : entry;
+        const { data } = await supabase.from("learning_entries").insert(payload).select("*").single();
         if (data) setLearning((prev) => [learningFromDb(data), ...prev]);
         return;
       }
@@ -268,7 +282,15 @@ export function DealStoreProvider({ children }: { children: React.ReactNode }) {
     importDealsCsv: async (raw) => {
       const imported = csvToDeals(raw);
       if (supabase) {
-        const { data } = await supabase.from("deals").insert(imported.map(dealToDb)).select("*");
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) {
+          alert("Нужно войти в аккаунт, чтобы импортировать сделки в базу.");
+          return;
+        }
+        const { data } = await supabase
+          .from("deals")
+          .insert(imported.map((deal) => ({ ...dealToDb(deal), user_id: userData.user!.id })))
+          .select("*");
         if (data) setDeals((prev) => [...data.map(dealFromDb).map(normalizeDeal), ...prev]);
         return;
       }
